@@ -1,123 +1,148 @@
 # Model Card: Mood Machine
 
-This model card is for the Mood Machine project, which includes **two** versions of a mood classifier:
+This project has two mood classifiers:
 
-1. A **rule based model** implemented in `mood_analyzer.py`
-2. A **machine learning model** implemented in `ml_experiments.py` using scikit learn
+A rule based model in mood_analyzer.py.
+An ML model in ml_experiments.py using scikit-learn.
 
-You may complete this model card for whichever version you used, or compare both if you explored them.
+I compared both models.
 
 ## 1. Model Overview
 
 **Model type:**  
-Describe whether you used the rule based model, the ML model, or both.  
-Example: “I used the rule based model only” or “I compared both models.”
+I used both models.
+The ML model changed more when I changed the dataset.
+The rule based model needed manual rule updates.
 
 **Intended purpose:**  
-What is this model trying to do?  
-Example: classify short text messages as moods like positive, negative, neutral, or mixed.
+The goal is to classify short text into positive, negative, neutral, or mixed.
 
 **How it works (brief):**  
-For the rule based version, describe the scoring rules you created.  
-For the ML version, describe how training works at a high level (no math needed).
+Rule based model:
+It preprocesses text into tokens.
+It adds points for positive signals.
+It subtracts points for negative signals.
+It handles negation, emojis, slang, and short text thresholds.
+It then maps score to a label.
 
-
+ML model:
+It uses CountVectorizer bag of words features.
+It trains LogisticRegression on `SAMPLE_POSTS` and `TRUE_LABELS`.
+It predicts labels from learned word patterns.
 
 ## 2. Data
 
 **Dataset description:**  
-Summarize how many posts are in `SAMPLE_POSTS` and how you added new ones.
+There are 17 posts in `SAMPLE_POSTS`.
+I added 6 new posts and matching labels in `TRUE_LABELS`.
 
 **Labeling process:**  
-Explain how you chose labels for your new examples.  
-Mention any posts that were hard to label or could have multiple valid labels.
+I labeled each post based on the main mood in the sentence.
+I used mixed when both positive and negative signals were present.
+Hard examples were:
+- "I'm dead 😂"
+- "Missed the bus again, love that for me"
+These can be interpreted in different ways.
 
 **Important characteristics of your dataset:**  
-Examples you might include:  
-
-- Contains slang or emojis  
-- Includes sarcasm  
-- Some posts express mixed feelings  
-- Contains short or ambiguous messages
+- It contains slang and emojis.
+- It includes sarcasm.
+- It has mixed-feeling posts.
+- It has short and ambiguous posts.
 
 **Possible issues with the dataset:**  
-Think about imbalance, ambiguity, or missing kinds of language.
+The dataset is still small.
+Some labels are subjective.
+It may miss language from other communities and styles.
 
 ## 3. How the Rule Based Model Works (if used)
 
 **Your scoring rules:**  
-Describe the modeling choices you made.  
-Examples:  
-
-- How positive and negative words affect score  
-- Negation rules you added  
-- Weighted words  
-- Emoji handling  
-- Threshold decisions for labels
+The model starts with score 0.
+Positive words add points.
+Negative words subtract points.
+Negation flips nearby sentiment words.
+Some emojis and slang use custom weights.
+Short texts use a ratio threshold.
+Longer texts use stronger score thresholds.
+Balanced contrastive text can be labeled mixed.
 
 **Strengths of this approach:**  
-Where does it behave predictably or reasonably well?
+It is easy to understand.
+It is easy to debug.
+It works well on patterns covered by rules.
 
 **Weaknesses of this approach:**  
-Where does it fail?  
-Examples: sarcasm, subtlety, mixed moods, unfamiliar slang.
+It can miss new slang.
+It can fail on subtle sarcasm.
+It needs manual tuning for edge cases.
+It can overreact to a few weighted words.
 
 ## 4. How the ML Model Works (if used)
 
 **Features used:**  
-Describe the representation.  
-Example: “Bag of words using CountVectorizer.”
+Bag of words using CountVectorizer.
 
 **Training data:**  
-State that the model trained on `SAMPLE_POSTS` and `TRUE_LABELS`.
+The model trained on `SAMPLE_POSTS` and `TRUE_LABELS`.
 
 **Training behavior:**  
-Did you observe changes in accuracy when you added more examples or changed labels?
+The model changed quickly when I added new labeled examples.
+It matched the updated labels on the training dataset.
 
 **Strengths and weaknesses:**  
-Strengths might include learning patterns automatically.  
-Weaknesses might include overfitting to the training data or picking up spurious cues.
+Strengths:
+- It learns patterns automatically.
+- It adapted better to my added data.
+
+Weaknesses:
+- Reported accuracy is on training data, so it can overfit.
+- It can learn spurious word-label shortcuts.
 
 ## 5. Evaluation
 
 **How you evaluated the model:**  
-Both versions can be evaluated on the labeled posts in `dataset.py`.  
-Describe what accuracy you observed.
+I evaluated both models on dataset.py labeled posts.
+Rule based accuracy was 0.88.
+ML accuracy was 1.00 on the same training dataset.
 
 **Examples of correct predictions:**  
-Provide 2 or 3 examples and explain why they were correct.
+- "Today was a terrible day" -> negative.
+It has a strong negative keyword.
+- "Highkey relaxed and chill tonight :)" -> positive.
+It has positive words and a positive emoji signal.
+- "I am tired and excited for tomorrow" -> mixed.
+It has both negative and positive words.
 
 **Examples of incorrect predictions:**  
-Provide 2 or 3 examples and explain why the model made a mistake.  
-If you used both models, show how their failures differed.
+Rule based mistakes after dataset expansion:
+- "I'm dead 😂" predicted positive, true mixed.
+The laugh emoji got a strong positive weight.
+- "Missed the bus again, love that for me" predicted mixed, true negative.
+Sarcasm and frustration were not fully captured.
+
+ML model had no errors on the training set in this run.
+This does not prove it will generalize to new unseen text.
 
 ## 6. Limitations
 
-Describe the most important limitations.  
-Examples:  
-
-- The dataset is small  
-- The model does not generalize to longer posts  
-- It cannot detect sarcasm reliably  
-- It depends heavily on the words you chose or labeled
+- The dataset is small.
+- Some labels are ambiguous.
+- Sarcasm is still hard for both models.
+- Rule based performance depends on hand-written rules.
+- ML score is measured on training data, not a separate test split.
 
 ## 7. Ethical Considerations
 
-Discuss any potential impacts of using mood detection in real applications.  
-Examples: 
-
-- Misclassifying a message expressing distress  
-- Misinterpreting mood for certain language communities  
-- Privacy considerations if analyzing personal messages
+- The model can misclassify distress messages.
+- It may misread slang from different communities.
+- Wrong labels can lead to unfair decisions.
+- Personal text analysis raises privacy concerns.
 
 ## 8. Ideas for Improvement
 
-List ways to improve either model.  
-Possible directions:  
-
-- Add more labeled data  
-- Use TF IDF instead of CountVectorizer  
-- Add better preprocessing for emojis or slang  
-- Use a small neural network or transformer model  
-- Improve the rule based scoring method  
-- Add a real test set instead of training accuracy only
+- Add more labeled posts with diverse language styles.
+- Create a train/validation/test split.
+- Add phrase-level sarcasm rules for the rule based model.
+- Improve emoji and slang normalization.
+- Update explain so it matches weighted scoring exactly.
