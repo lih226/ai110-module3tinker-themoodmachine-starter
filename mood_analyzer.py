@@ -9,6 +9,7 @@ This class starts with very simple logic:
   - Convert that score into a mood label
 """
 
+import re
 from typing import List, Dict, Tuple, Optional
 
 from dataset import POSITIVE_WORDS, NEGATIVE_WORDS
@@ -53,9 +54,27 @@ class MoodAnalyzer:
           - Normalize repeated characters ("soooo" -> "soo")
         """
         cleaned = text.strip().lower()
+
+        # Replace a few simple emoticons/emojis with explicit tokens so they
+        # survive punctuation removal and are handled as separate features.
+        emoji_map = {
+          ":)": " emoji_smile ",
+          ":-(": " emoji_sad ",
+          "🥲": " emoji_tear_smile ",
+          "😂": " emoji_laugh ",
+        }
+        for symbol, replacement in emoji_map.items():
+          cleaned = cleaned.replace(symbol, replacement)
+
+        # Remove punctuation and symbols (keep letters, numbers, and spaces).
+        cleaned = re.sub(r"[^\w\s]", " ", cleaned)
         tokens = cleaned.split()
 
-        return tokens
+        # Normalize character runs sooooo -> soo (keep up to two repeats).
+        normalized_tokens = [re.sub(r"([a-z])\1{2,}", r"\1\1", token) for token in tokens]
+
+        # Guard against empty tokens if input had unusual spacing/symbols.
+        return [token for token in normalized_tokens if token]
 
     # ---------------------------------------------------------------------
     # Scoring logic
@@ -75,15 +94,45 @@ class MoodAnalyzer:
           - Give some words higher weights than others (for example "hate" < "annoyed")
           - Treat emojis or slang (":)", "lol", "💀") as strong signals
         """
-        # TODO: Implement this method.
-        #   1. Call self.preprocess(text) to get tokens.
-        #   2. Loop over the tokens.
-        #   3. Increase the score for positive words, decrease for negative words.
-        #   4. Return the total score.
-        #
-        # Hint: if you implement negation, you may want to look at pairs of tokens,
-        # like ("not", "happy") or ("never", "fun").
-        pass
+        tokens = self.preprocess(text)
+        score = 0
+
+        # Enhancement 1: simple negation handling for adjacent sentiment words.
+        negation_words = {"not", "never", "no"}
+
+        # Enhancement 2: treat emoji/slang tokens as stronger signals.
+        signal_weights = {
+          "emoji_smile": 2,
+          "emoji_laugh": 2,
+          "emoji_sad": -2,
+          "emoji_tear_smile": -1,
+          "lol": 1,
+          "lmao": 1,
+          "rofl": 1,
+          "dead": -1,
+          "mood": 1,
+          "lowkey": -1,
+          "highkey": 1,
+          # Common frustration context words (helps with light sarcasm).
+          "stuck": -2,
+          "traffic": -1,
+        }
+
+        for i, token in enumerate(tokens):
+          # First, apply explicit weighted signals if present.
+          if token in signal_weights:
+            score += signal_weights[token]
+            continue
+
+          is_negated = i > 0 and tokens[i - 1] in negation_words
+
+          # Then apply base word-list scoring.
+          if token in self.positive_words:
+            score += -1 if is_negated else 1
+          elif token in self.negative_words:
+            score += 1 if is_negated else -1
+
+        return score
 
     # ---------------------------------------------------------------------
     # Label prediction
@@ -105,12 +154,42 @@ class MoodAnalyzer:
         Just remember that whatever labels you return should match the labels
         you use in TRUE_LABELS in dataset.py if you care about accuracy.
         """
-        # TODO: Implement this method.
-        #   1. Call self.score_text(text) to get the numeric score.
-        #   2. Return "positive" if the score is above 0.
-        #   3. Return "negative" if the score is below 0.
-        #   4. Return "neutral" otherwise.
-        pass
+        tokens = self.preprocess(text)
+        token_count = len(tokens)
+        score = self.score_text(text)
+        has_contrast_cue = "but" in tokens or "or" in tokens
+        has_positive_word = any(token in self.positive_words for token in tokens)
+        has_negative_word = any(token in self.negative_words for token in tokens)
+
+        if score == 0:
+          # Balanced positive/negative language is usually better represented
+          # as mixed rather than neutral.
+          if has_contrast_cue or (has_positive_word and has_negative_word):
+            return "mixed"
+          return "neutral"
+
+        # For short text, use score density (percent of token length) so
+        # very short messages are not over-penalized or over-boosted.
+        if token_count <= 6:
+          score_ratio = score / max(token_count, 1)
+          short_threshold = 0.1
+          if score_ratio >= short_threshold:
+            return "positive"
+          if score_ratio <= -short_threshold:
+            return "negative"
+          return "mixed"
+
+        # For longer text, contrast words often indicate mixed/ambivalent tone
+        # when the score is only slightly polarized.
+        if has_contrast_cue and abs(score) <= 2:
+          return "mixed"
+
+        # For normal length text, keep a fixed stronger threshold.
+        if score >= 2:
+          return "positive"
+        if score <= -2:
+          return "negative"
+        return "mixed"
 
     # ---------------------------------------------------------------------
     # Explanations (optional but recommended)
